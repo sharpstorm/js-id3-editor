@@ -1,0 +1,77 @@
+body {
+  margin: 2em;
+  background-color: #E1E1E1;
+}
+
+#main-dialog {
+  margin-top: 10vh; 
+  transition: max-width 1s ease-in-out;
+  max-width: 500px;
+}
+
+.pane{
+  display: none;
+  overflow-y: hidden;
+  max-height: 0;
+  transition: max-height 1s ease-in-out;
+}
+
+.pane.active{
+  display: block;
+  max-height: none;
+}
+
+h5{
+ margin-bottom: 16px; 
+}
+
+#editor-player{
+ width: 100%; 
+}
+
+.tab-window {
+  background-color: #f7f7f9;
+  color: #000;
+  max-width: 100%;
+  border: 1px solid #CCC;
+}
+
+.tab-custom:hover{
+  background-color: #DDD;
+}
+
+.tab-custom{
+  border: 1px solid #CCC;
+}
+
+.hex-view{
+  font-family: consolas;
+  overflow: scroll;
+  max-height: 400px;
+}
+
+.row-count{
+  border-right: 1px solid #CCC;
+  text-align: right;
+  padding-right: 4px;
+}
+
+.alert-no-margin{
+  margin-bottom: 0;
+}
+
+.note-strong{
+  font-weight: 700;
+  color: red;
+}
+
+#footer {
+  display: none;
+}
+
+#app.editor > #main-dialog { max-width: 1000px; }
+#app.editor > #main-dialog > div > #footer { display: block; }
+
+#confirm-tags > tr > td:last-child {
+  display: none;
+}
