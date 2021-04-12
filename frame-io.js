@@ -249,7 +249,7 @@ function writeId3Frame(tag, frame, versionMajor) {
   }
 
   let binDatLen;
-  if (this.versionMajor >= 4) {
+  if (versionMajor >= 4) {
     binDatLen = writeSynchSafeInt(curData.length);
   } else {
     binDatLen = writeInt(curData.length);
