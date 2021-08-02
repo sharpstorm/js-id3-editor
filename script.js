@@ -1,3 +1,19 @@
+const BitrateIndex = {
+  'V1,L1': [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448],
+  'V1,L2': [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384],
+  'V1,L3': [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320],
+  'V2,L1': [0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256],
+  'V2,L2': [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],
+  'V2,L3': [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],
+}
+
+const SampleIndex = [
+  [ 11025, 12000, 8000 ],  // MPEG 2.5
+  undefined,
+  [ 22050, 24000, 16000 ], // MPEG 2
+  [ 44100, 48000, 32000 ], // MPEG 1
+];
+
 class ID3 {
   constructor(file) {
     this.meta = {
@@ -11,7 +27,7 @@ class ID3 {
       experimental: 0,
       footer: 0
     };
-    this.tagLength = 0;
+    this.tagLength = -1;
     this.frames = {};
     this.file = file;
   }
@@ -22,13 +38,56 @@ class ID3 {
       .then(data => {
         //Check Sign
         if (data[0] !== 73 || data[1] !== 68 || data[2] !== 51) { //ID3
-          if (data[0] !== 255 || data[1] !== 251) {
-            console.log('[Header] Invalid ID3 Tag');
+          if (data[0] !== 255 || data[1] < 224) {
+            console.log('[Header] Invalid MP3 File');
             return reject('Invalid ID3 Header');
-          }else{
-            console.log('[Header] No ID3 Tag detected');
-            return reject('No ID3 Tag Detected');
+          } else {
+            // No ID3 Tag, But possibly a MP3 File
+            // Reference: http://www.mp3-tech.org/programmer/frame_header.html
+            const versionActual = (data[1] >> 3) & 3;
+            const version = (data[1] >> 3) & 1; // 0 is version 2, 1 is version 1
+            const layer = (data[1] >> 1) & 3; // 01 - Layer 3, 10 - Layer 2, 11 - Layer 1
+            const bitrateIndex = (data[2] >> 4) & 15;
+            const sampleRate = (data[2] >> 2) & 3;
+
+            const lookupIndex = `V${(version === 1) ? '1': '2'},L${4 - layer}`;
+            const table = BitrateIndex[lookupIndex];
+            if (table === undefined) {
+              return reject('Not an MP3 File 1');
+            } else if (bitrateIndex > 14) {
+              return reject('Not an MP3 File 2');
+            } else if (bitrateIndex === 0) {
+              return reject('Not an MP3 File 3');
+            }
+            const bitrate = table[bitrateIndex];
+
+            if (sampleRate >= 3 || sampleRate < 0) {
+              return reject('Not an MP3 File 4');
+            }
+
+            const sampleTable = SampleIndex[versionActual];
+            if (sampleTable === undefined) {
+              return reject('Not an MP3 File 5');
+            }
+            const sampleFreq = sampleTable[sampleRate];
+            const padding = (data[2] >> 1) & 1;
+
+            const frameLen = Math.floor((144 * bitrate / sampleFreq) + padding);
+            readFile(this.file, frameLen, 2)
+            .then((data2) => {
+              if (data2[0] !== 255 || data2[1] < 224) {
+                return reject('Not an MP3 File 6');
+              }
+
+              // Init to defaults
+              this.versionMajor = 2;
+              this.versionMinor = 3;
+              this.flags = buildEmptyFlags();
+              this.tagLength = 0;
+              resolve(this);
+            });
           }
+          return;
         }
 
         this.versionMajor = data[3];
@@ -87,16 +146,20 @@ class ID3 {
 
   parseId3Body() {
     return new Promise((resolve, reject) => {
-      if (this.tagLength === 0) {
+      if (this.tagLength < 0) {
         console.log('[Body] ID3 Header has not been parsed');
         return reject('ID3 Header has not been parsed'); 
       }
 
-      readFile(this.file, this.meta.headerLen, this.tagLength + 10)
-      .then(data => {
-        this.parseId3Frames(data);
+      if (this.tagLength > 0) {
+        readFile(this.file, this.meta.headerLen, this.tagLength + 10)
+        .then(data => {
+          this.parseId3Frames(data);
+          resolve(this);
+        });
+      } else {
         resolve(this);
-      });
+      }
     });
   }
   
